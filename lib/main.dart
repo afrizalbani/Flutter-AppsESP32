@@ -1,26 +1,83 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async'; // Tambahkan ini untuk TimeoutException
 
-void main() {
-  runApp(const MyApp());
+// Halaman Pengaturan (SettingsPage) yang sudah kita buat sebelumnya
+// Pastikan kode ini ada dalam file main.dart Anda
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({Key? key}) : super(key: key);
+
+  @override
+  _SettingsPageState createState() => _SettingsPageState();
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+class _SettingsPageState extends State<SettingsPage> {
+  final _ipController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIpAddress();
+  }
+
+  Future<void> _loadIpAddress() async {
+    final prefs = await SharedPreferences.getInstance();
+    _ipController.text = prefs.getString('esp32Ip') ?? '';
+  }
+
+  Future<void> _saveIpAddress() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('esp32Ip', _ipController.text);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('IP Address berhasil disimpan!'))
+    );
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    _ipController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ESP32 Wi-Fi Control',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pengaturan'),
       ),
-      home: const ControlPage(),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            const Text(
+              'Masukkan IP Address ESP32:',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _ipController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'IP Address',
+                hintText: 'misalnya: 192.168.1.10',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _saveIpAddress,
+              child: const Text('Simpan IP'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
-
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Halaman Kontrol (ControlPage) dengan tombol Settings di pojok kanan atas
 class ControlPage extends StatefulWidget {
   const ControlPage({Key? key}) : super(key: key);
 
@@ -30,34 +87,47 @@ class ControlPage extends StatefulWidget {
 
 class _ControlPageState extends State<ControlPage> {
   String _statusMessage = "Siap kirim perintah.";
-
-  // Ganti dengan IP lokal ESP32 atau IP publik router Anda
-  final String _esp32Ip = "192.168.1.10";
+  String _esp32Ip = "";
   final int _esp32Port = 80;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadIpAddress();
+  }
+
+  Future<void> _loadIpAddress() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _esp32Ip = prefs.getString('esp32Ip') ?? '';
+    });
+  }
+
   Future<void> _sendCommand(String command) async {
+    if (_esp32Ip.isEmpty) {
+      setState(() {
+        _statusMessage = "IP Address belum diatur. Silakan ke Pengaturan.";
+      });
+      return;
+    }
+
     setState(() {
       _statusMessage = "Mengirim perintah...";
     });
     try {
       final socket = await Socket.connect(_esp32Ip, _esp32Port, timeout: const Duration(seconds: 5));
-      socket.write("$command\n"); // Kirim perintah diikuti baris baru
+      socket.write("$command\n");
       await socket.flush();
-
-      // Baca respons dari ESP32
       final response = await socket.first.timeout(const Duration(seconds: 5));
       final String responseString = String.fromCharCodes(response);
-
       setState(() {
         _statusMessage = responseString.trim();
       });
-
       await socket.close();
     } on SocketException catch (e) {
       setState(() {
         _statusMessage = "Koneksi gagal: ${e.message}";
       });
-      print(e);
     } on TimeoutException {
       setState(() {
         _statusMessage = "Koneksi timeout.";
@@ -73,7 +143,20 @@ class _ControlPageState extends State<ControlPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kontrol ESP32 via Wi-Fi'),
+        title: const Text('Kontrol ESP32'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              ).then((_) {
+                _loadIpAddress();
+              });
+            },
+          ),
+        ],
       ),
       body: Center(
         child: Padding(
@@ -81,6 +164,8 @@ class _ControlPageState extends State<ControlPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
+              Text("IP ESP32: $_esp32Ip", style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
+              const SizedBox(height: 20),
               Text(
                 _statusMessage,
                 style: const TextStyle(fontSize: 18),
@@ -92,17 +177,11 @@ class _ControlPageState extends State<ControlPage> {
                 children: <Widget>[
                   ElevatedButton(
                     onPressed: () => _sendCommand("LED_ON"),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                    ),
-                    child: const Text('HIDUPKAN', style: TextStyle(fontSize: 16)),
+                    child: const Text('HIDUPKAN'),
                   ),
                   ElevatedButton(
                     onPressed: () => _sendCommand("LED_OFF"),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                    ),
-                    child: const Text('MATIKAN', style: TextStyle(fontSize: 16)),
+                    child: const Text('MATIKAN'),
                   ),
                 ],
               ),
