@@ -28,10 +28,10 @@ class ControlPage extends StatefulWidget {
   const ControlPage({Key? key}) : super(key: key);
 
   @override
-  _ControlPageState createState() => _ControlPageState();
+  ControlPageState createState() => ControlPageState();
 }
 
-class _ControlPageState extends State<ControlPage> {
+class ControlPageState extends State<ControlPage> {
   String _statusMessage = "Siap kirim perintah.";
   String _esp32Ip = "";
   final int _esp32Port = 80;
@@ -44,7 +44,7 @@ class _ControlPageState extends State<ControlPage> {
 
   Future<void> _loadIpAddress() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) { // Pengecekan mounted
+    if (mounted) {
       setState(() {
         _esp32Ip = prefs.getString('esp32Ip') ?? '';
       });
@@ -53,7 +53,7 @@ class _ControlPageState extends State<ControlPage> {
 
   Future<void> _sendCommand(String command) async {
     if (_esp32Ip.isEmpty) {
-      if (mounted) { // Pengecekan mounted
+      if (mounted) {
         setState(() {
           _statusMessage = "IP Address belum diatur. Silakan ke Pengaturan.";
         });
@@ -61,12 +61,12 @@ class _ControlPageState extends State<ControlPage> {
       return;
     }
 
-    if (mounted) { // Pengecekan mounted
+    if (mounted) {
       setState(() {
         _statusMessage = "Mengirim perintah...";
       });
     }
-    
+
     try {
       final socket = await Socket.connect(_esp32Ip, _esp32Port, timeout: const Duration(seconds: 5));
       socket.write("$command\n");
@@ -74,7 +74,7 @@ class _ControlPageState extends State<ControlPage> {
       final response = await socket.first.timeout(const Duration(seconds: 5));
       final String responseString = String.fromCharCodes(response);
 
-      if (mounted) { // Pengecekan mounted
+      if (mounted) {
         setState(() {
           _statusMessage = responseString.trim();
         });
@@ -82,19 +82,19 @@ class _ControlPageState extends State<ControlPage> {
 
       await socket.close();
     } on SocketException catch (e) {
-      if (mounted) { // Pengecekan mounted
+      if (mounted) {
         setState(() {
           _statusMessage = "Koneksi gagal: ${e.message}";
         });
       }
     } on TimeoutException {
-      if (mounted) { // Pengecekan mounted
+      if (mounted) {
         setState(() {
           _statusMessage = "Koneksi timeout.";
         });
       }
     } catch (e) {
-      if (mounted) { // Pengecekan mounted
+      if (mounted) {
         setState(() {
           _statusMessage = "Terjadi kesalahan: $e";
         });
@@ -135,15 +135,36 @@ class _ControlPageState extends State<ControlPage> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 30),
+              
+              // --- Tombol untuk Lampu 1 ---
+              const Text('Lampu 1'),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: <Widget>[
                   ElevatedButton(
-                    onPressed: () => _sendCommand("LED_ON"),
+                    onPressed: () => _sendCommand("LAMP1_ON"),
                     child: const Text('HIDUPKAN'),
                   ),
                   ElevatedButton(
-                    onPressed: () => _sendCommand("LED_OFF"),
+                    onPressed: () => _sendCommand("LAMP1_OFF"),
+                    child: const Text('MATIKAN'),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+              
+              // --- Tombol untuk Lampu 2 ---
+              const Text('Lampu 2'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: () => _sendCommand("LAMP2_ON"),
+                    child: const Text('HIDUPKAN'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => _sendCommand("LAMP2_OFF"),
                     child: const Text('MATIKAN'),
                   ),
                 ],
@@ -155,7 +176,6 @@ class _ControlPageState extends State<ControlPage> {
     );
   }
 }
-
 // ---------------------- Halaman Pengaturan (SettingsPage) ----------------------
 
 class SettingsPage extends StatefulWidget {
